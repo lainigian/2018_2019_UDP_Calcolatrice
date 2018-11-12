@@ -9,6 +9,8 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
+import javax.security.auth.callback.ConfirmationCallback;
+
 public class UDPclient 
 {
 
@@ -25,59 +27,63 @@ public class UDPclient
 		socket.close();
 	}
 	
-	public double sendAndReceive(String host, int port, double x, double y, char operazione) throws UnknownHostException, IOException
+	public Double sendAndReceive(String host, int port, double x, double y, char operazione) throws UnsupportedEncodingException, UnknownHostException, IOException, calcoloErrato
 	{
-		byte[] bufferRequest=new byte[20];
-		byte[] bufferAnswer=new byte[8];
+		//byte[] bufferRequest=new byte[8192];
+		byte[] bufferAnswer=new byte[13];
 		DatagramPacket request;
 		DatagramPacket answer;
-		ByteBuffer data = ByteBuffer.allocate(20);
+		ByteBuffer data= ByteBuffer.allocate(18);
 		
 		InetAddress address=InetAddress.getByName(host);
-		double rispostaServer = 0;
+		double risultato = 0;
+		int codiceRisultato = 0;
 		
-		//costruisco il bytebuffer per la richiesta
 		data.clear();
 		data.putDouble(x);
 		data.putDouble(y);
 		data.putChar(operazione);
-		//estraggo l'array di byte dal bytebuffer e lo incapsulo nel datagramma
 		data.flip();
-		request=new DatagramPacket(data.array(), data.array().length, address, port);
+		request=new DatagramPacket(data.array(),data.limit(), address, port);
 		answer=new DatagramPacket(bufferAnswer, bufferAnswer.length);
 		socket.send(request);
 		socket.receive(answer);
 		if (answer.getAddress().getHostAddress().compareTo(host)==0 && answer.getPort()==port)
 		{
-			//estraggo l'array di byte dal datagramma answer e lo incapsulo nel bytebuffer
 			data.clear();
 			data.put(answer.getData());
+			data.flip();
+			risultato=data.getDouble();
+			codiceRisultato=data.getInt();
 		}
 		closeSocket();
-		//estraggo il dato dal bytebuffer
-		data.flip();
-		rispostaServer=data.getDouble();
-		return rispostaServer;
+		
+		if (codiceRisultato==0)
+			return risultato;
+		else
+			throw new calcoloErrato(codiceRisultato);
+		
+		
 	}
 	
 	public static void main(String[] args) 
 	{
 		double rispostaServer;
 		String host="127.0.0.1";
-		int port=1100;
+		int port=2000;
+		
 		double x=10;
-		double y=5;
-		char operazione='?';
-
+		double y=0;
+		char operazione='+';
 		try 
 		{
 			UDPclient echoClient=new UDPclient();
-			rispostaServer=echoClient.sendAndReceive(host, port,x,y,operazione);
-			System.out.println("risultato: \n "+x+ operazione+y+"= " +rispostaServer);
+			rispostaServer=echoClient.sendAndReceive(host, port, x,y,operazione);
+			System.out.println("Calcolo effettiuato dal server: "+x+operazione+y+"="+rispostaServer);
 		} 
 		catch (SocketTimeoutException e)
 		{
-			System.err.println("Timeout");
+			System.err.println("Il server non risponde");
 		}
 		catch (SocketException e)
 		{
@@ -94,6 +100,10 @@ public class UDPclient
 		catch (IOException e) 
 		{
 			System.err.println("Errore generico di I/O");
+		} 
+		catch (calcoloErrato e) 
+		{
+			System.err.println(e.toString());
 		}
 		
 
